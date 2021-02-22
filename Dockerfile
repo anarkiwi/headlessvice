@@ -5,9 +5,9 @@
 # $ docker build -f Dockerfile . -t anarkiwi/headlessvice
 # $ mkdir vice
 # $ cp /somewhere/paradroid.sid ~/vice
-# $ docker run -v ~/vice:/vice -ti anarkiwi/headlessvice vsid -verbose -sounddev dump -soundarg /vice/paradroid.dump -warp -limit 10000000 /vice/paradroid.sid
+# $ docker run --rm -v ~/vice:/vice -ti anarkiwi/headlessvice vsid -verbose -sounddev dump -soundarg /vice/paradroid.dump -warp -limit 10000000 /vice/paradroid.sid
 #
-# $ find /sids . -name \*sid|parallel docker run -v /sids:/vice -i anarkiwi/headlessvice vsid  -sounddev dump -soundarg /vice/`basename {}`.dump -warp -limit 300000000 /vice/{}
+# $ SIDS=/sids ; cd $SIDS && find . -type f -name \*sid|parallel docker run --rm -v $SIDS:/vice -i anarkiwi/headlessvice vsid -sounddev dump -soundarg /vice/`basename {}`.dump -warp -limit 300000000 /vice/{}
 
 FROM ubuntu:latest AS builder
 
