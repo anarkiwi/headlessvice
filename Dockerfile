@@ -28,3 +28,5 @@ RUN cd vice-* && make -j all && make install
 FROM ubuntu:latest
 
 COPY --from=builder /usr/local /usr/local
+RUN apt-get update && apt-get install -yq libgomp1
+RUN /usr/local/bin/vsid --help
