@@ -12,7 +12,7 @@
 FROM ubuntu:latest AS builder
 
 WORKDIR /vice
-ENV VICEVER 3.7
+ENV VICEVER 3.7.1
 
 RUN apt-get update && apt-get install -yq wget && wget -q -O- https://sourceforge.net/projects/vice-emu/files/releases/vice-$VICEVER.tar.gz/download | tar zxvf -
 #    apt-get install -y subversion && \
