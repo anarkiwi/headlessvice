@@ -19,7 +19,7 @@ WORKDIR /vice
 #    svn checkout --non-interactive --trust-server-cert http://svn.code.sf.net/p/vice-emu/code/tags/$VICEVER vice-emu-code
 
 RUN apt-get update && \
-    apt-get install -y git libx11-dev file make autoconf gcc g++ flex bison dos2unix xa65 && \
+    apt-get install -y git file make autoconf gcc g++ flex bison dos2unix xa65 && \
     git clone https://github.com/anarkiwi/asid-vice && \
     cd asid-vice && \
     aclocal && autoheader && autoconf && automake --force-missing --add-missing && ./autogen.sh && \
