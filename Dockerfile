@@ -30,5 +30,6 @@ FROM ubuntu:latest
 
 COPY --from=builder /usr/local /usr/local
 COPY vsiddump.py /usr/local/bin/vsiddump.py
-RUN apt-get update && apt-get install -yq libgomp1 python3 python3-zstd
+RUN apt-get update && apt-get install -yq libgomp1 python3 python3-pip && pip3 install psutil zstandard && apt-get purge -y python3-pip && apt -y autoremove && apt-get clean
 RUN /usr/local/bin/vsid --help
+RUN /usr/local/bin/vsiddump.py /tmp/test.zst --help
