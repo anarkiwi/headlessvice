@@ -19,7 +19,7 @@ WORKDIR /vice
 #    svn checkout --non-interactive --trust-server-cert http://svn.code.sf.net/p/vice-emu/code/tags/$VICEVER vice-emu-code
 
 RUN apt-get update && \
-    apt-get install -y git file make autoconf gcc g++ flex bison dos2unix xa65 && \
+    apt-get install -y git file make autoconf gcc g++ flex bison dos2unix xa65 libcurl4-openssl-dev && \
     git clone https://github.com/anarkiwi/asid-vice && \
     cd asid-vice && \
     aclocal && autoheader && autoconf && automake --force-missing --add-missing && ./autogen.sh && \
@@ -30,6 +30,6 @@ FROM ubuntu:latest
 
 COPY --from=builder /usr/local /usr/local
 COPY vsiddump.py /usr/local/bin/vsiddump.py
-RUN apt-get update && apt-get install -yq libgomp1 python3 python3-pip && pip3 install psutil zstandard && apt-get purge -y python3-pip && apt -y autoremove && apt-get clean
+RUN apt-get update && apt-get install -yq libcurl4 libgomp1 python3 python3-pip && pip3 install psutil zstandard && apt-get purge -y python3-pip && apt -y autoremove && apt-get clean
 RUN /usr/local/bin/vsid --help
 RUN /usr/local/bin/vsiddump.py /tmp/test.zst --help
