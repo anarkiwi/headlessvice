@@ -12,8 +12,16 @@ timeout = 10
 dumpname = sys.argv[1]
 vsidargs = sys.argv[2:]
 
-# compress repeated writes, add chipno
+
+# compress repeated writes, mask unused bits, add chipno
 class reg_processor:
+    regwidths = {
+        3: 4,  # v1 PWM high
+        10: 4,  # v2 PWM high
+        17: 4,  # v3 PWM high,
+        21: 3,  # filter cutoff low
+    }
+
     def __init__(self):
         self.clock = 0
         self.lastclock = 0
@@ -30,6 +38,8 @@ class reg_processor:
             addr -= chipbase
             linestate = (chipno, addr)
             self.clock += clock_diff
+            mask = 2 ** self.regwidths.get(addr, 8) - 1
+            val = val & mask
             if self.sidstate.get(linestate, None) == val:
                 continue
             self.sidstate[linestate] = val
