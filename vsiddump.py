@@ -102,7 +102,15 @@ def main():
                             buffer = buffer[last_newline + 1 :]
                 writer.write(processor.process(buffer))
         if processor.lines_out:
-            print(processor.lines_in / processor.lines_out * 100)
+            print(
+                dumpname,
+                "in",
+                processor.lines_in,
+                "out",
+                processor.lines_out,
+                processor.lines_out / processor.lines_in * 100,
+                "%",
+            )
 
 
 if __name__ == "__main__":
