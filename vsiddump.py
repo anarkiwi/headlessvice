@@ -16,10 +16,11 @@ vsidargs = sys.argv[2:]
 # compress repeated writes, mask unused bits, add chipno
 class reg_processor:
     regwidths = {
-        3: 4,  # v1 PWM high
-        10: 4,  # v2 PWM high
-        17: 4,  # v3 PWM high,
-        21: 3,  # filter cutoff low
+        3: 2**4 - 1,  # v1 PWM high
+        10: 2**4 - 1,  # v2 PWM high
+        17: 2**4 - 1,  # v3 PWM high,
+        21: 2**3 - 1,  # filter cutoff low
+        23: (2**8 - 1) - 2**3,  # clear filter external
     }
 
     def __init__(self):
@@ -38,7 +39,7 @@ class reg_processor:
             addr -= chipbase
             linestate = (chipno, addr)
             self.clock += clock_diff
-            mask = 2 ** self.regwidths.get(addr, 8) - 1
+            mask = self.regwidths.get(addr, 255)
             val = val & mask
             if self.sidstate.get(linestate, None) == val:
                 continue
