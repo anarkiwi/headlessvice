@@ -44,6 +44,8 @@ class reg_processor:
 
 
 def main():
+    processor = reg_processor()
+
     with tempfile.TemporaryDirectory() as tmpdir:
         fifoname = os.path.join(tmpdir, "fifo")
         os.mkfifo(fifoname)
@@ -73,9 +75,9 @@ def main():
                             break
                         last_newline = buffer.rfind("\n")
                         if last_newline != -1:
-                            process_data(buffer[:last_newline])
+                            writer.write(processor.process(buffer[:last_newline]))
                             buffer = buffer[last_newline + 1 :]
-                writer.write(process_data(buffer))
+                writer.write(processor.process(buffer))
 
 
 if __name__ == "__main__":
