@@ -28,12 +28,13 @@ class reg_processor:
     def process(self, data):
         lines = []
         for line in data.splitlines():
-            if ":" in line:
+            try:
+                clock_diff, irq_diff, nmi_diff, chipno, addr, val = [
+                    int(i) for i in line.split()
+                ]
+            except ValueError:
                 continue
             self.lines_in += 1
-            clock_diff, irq_diff, nmi_diff, chipno, addr, val = [
-                int(i) for i in line.split()
-            ]
             linestate = (chipno, addr)
             self.clock += clock_diff
             mask = self.regwidths.get(addr, 255)
