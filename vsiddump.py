@@ -65,20 +65,28 @@ class reg_processor:
 def main():
     parser = argparse.ArgumentParser(allow_abbrev=False, prefix_chars="-+")
     parser.add_argument("--dump", dest="dump")
+    parser.add_argument("--sid", dest="sid")
     args, vsidargs = parser.parse_known_args()
+    if not (args.dump and args.sid):
+        raise ValueError("need --dump and --sid")
+
     processor = reg_processor()
 
     with tempfile.TemporaryDirectory() as tmpdir:
         fifoname = os.path.join(tmpdir, "fifo")
         os.mkfifo(fifoname)
-        cli = [
-            "/usr/local/bin/vsid",
-            "-silent",
-            "-sounddev",
-            "dump",
-            "-soundarg",
-            fifoname,
-        ] + vsidargs
+        cli = (
+            [
+                "/usr/local/bin/vsid",
+                "-silent",
+                "-sounddev",
+                "dump",
+                "-soundarg",
+                fifoname,
+            ]
+            + vsidargs
+            + [args.sid]
+        )
 
         with open(args.dump, "wb") as dump:
             cctx = zstandard.ZstdCompressor()
