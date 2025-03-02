@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import argparse
-import sys
 import tempfile
 import time
 import os
@@ -22,7 +21,6 @@ class reg_processor:
 
     def __init__(self):
         self.clock = 0
-        self.lastclock = 0
         self.sidstate = {}
         self.lines_in = 0
         self.lines_out = 0
@@ -49,7 +47,7 @@ class reg_processor:
                     [
                         str(i)
                         for i in [
-                            self.clock - self.lastclock,
+                            self.clock,
                             irq_diff,
                             nmi_diff,
                             chipno,
@@ -60,7 +58,6 @@ class reg_processor:
                 )
                 + "\n"
             )
-            lastclock = self.clock
         return "".join(lines).encode("utf8")
 
 
