@@ -1,5 +1,6 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 
+import argparse
 import sys
 import tempfile
 import time
@@ -7,10 +8,6 @@ import os
 from subprocess import Popen, PIPE, STDOUT
 import psutil
 import zstandard
-
-timeout = 10
-dumpname = sys.argv[1]
-vsidargs = sys.argv[2:]
 
 
 # compress repeated writes, mask unused bits, add chipno
@@ -36,10 +33,9 @@ class reg_processor:
             if ":" in line:
                 continue
             self.lines_in += 1
-            clock_diff, addr, val = [int(i) for i in line.split()]
-            chipno = int(addr / 32)
-            chipbase = chipno * 32
-            addr -= chipbase
+            clock_diff, irq_diff, nmi_diff, chipno, addr, val = [
+                int(i) for i in line.split()
+            ]
             linestate = (chipno, addr)
             self.clock += clock_diff
             mask = self.regwidths.get(addr, 255)
@@ -50,7 +46,17 @@ class reg_processor:
             self.sidstate[linestate] = val
             lines.append(
                 " ".join(
-                    [str(i) for i in [self.clock - self.lastclock, chipno, addr, val]]
+                    [
+                        str(i)
+                        for i in [
+                            self.clock - self.lastclock,
+                            irq_diff,
+                            nmi_diff,
+                            chipno,
+                            addr,
+                            val,
+                        ]
+                    ]
                 )
                 + "\n"
             )
@@ -59,6 +65,9 @@ class reg_processor:
 
 
 def main():
+    parser = argparse.ArgumentParser(allow_abbrev=False, prefix_chars="-+")
+    parser.add_argument("--dump", dest="dump")
+    args, vsidargs = parser.parse_known_args()
     processor = reg_processor()
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -66,13 +75,14 @@ def main():
         os.mkfifo(fifoname)
         cli = [
             "/usr/local/bin/vsid",
+            "-silent",
             "-sounddev",
             "dump",
             "-soundarg",
             fifoname,
         ] + vsidargs
 
-        with open(dumpname, "wb") as dump:
+        with open(args.dump, "wb") as dump:
             cctx = zstandard.ZstdCompressor()
             with cctx.stream_writer(dump) as writer:
                 fifofh = os.open(fifoname, os.O_RDONLY | os.O_NONBLOCK)
