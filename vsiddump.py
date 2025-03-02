@@ -113,7 +113,7 @@ def main():
                 writer.write(processor.process(buffer))
         if processor.lines_out:
             print(
-                dumpname,
+                args.dump,
                 "in",
                 processor.lines_in,
                 "out",
