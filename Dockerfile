@@ -3,11 +3,7 @@
 # Example usage:
 #
 # $ docker build -f Dockerfile . -t anarkiwi/headlessvice
-# $ mkdir vice
-# $ cp /somewhere/paradroid.sid ~/vice
-# $ docker run --rm -v ~/vice:/vice -ti anarkiwi/headlessvice vsid -verbose -sounddev dump -soundarg /vice/paradroid.dump -warp -limit 10000000 /vice/paradroid.sid
-#
-# $ SIDS=/sids ; cd $SIDS && find . -type f -name \*sid|parallel docker run --rm -v $SIDS:/vice -i anarkiwi/headlessvice vsid -sounddev dump -soundarg /vice/`basename {}`.dump -warp -limit 900000000 /vice/{}
+# $ docker run --rm -v /scratch/hvsc:/scratch/hvsc -t anarkiwi/headlessvice /usr/local/bin/vsiddump.py --dumpdir=/scratch/hvsc/ --sid /scratch/hvsc/C64Music/MUSICIANS/H/Hubbard_Rob/Commando.sid --songlengths=/scratch/hvsc/C64Music/DOCUMENTS/Songlengths.md5
 
 FROM ubuntu:latest AS builder
 

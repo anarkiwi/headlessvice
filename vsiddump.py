@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 
 import argparse
-import tempfile
-import time
+import hashlib
 import os
-from subprocess import Popen, PIPE, STDOUT
-import psutil
+import subprocess
+import tempfile
+from concurrent.futures import ProcessPoolExecutor
 import zstandard
 
 
@@ -28,12 +28,9 @@ class reg_processor:
     def process(self, data):
         lines = []
         for line in data.splitlines():
-            try:
-                clock_diff, irq_diff, nmi_diff, chipno, addr, val = [
-                    int(i) for i in line.split()
-                ]
-            except ValueError:
-                continue
+            clock_diff, irq_diff, nmi_diff, chipno, addr, val = [
+                int(i) for i in line.split()
+            ]
             self.lines_in += 1
             linestate = (chipno, addr)
             self.clock += clock_diff
@@ -62,14 +59,7 @@ class reg_processor:
         return "".join(lines).encode("utf8")
 
 
-def main():
-    parser = argparse.ArgumentParser(allow_abbrev=False, prefix_chars="-+")
-    parser.add_argument("--dump", dest="dump")
-    parser.add_argument("--sid", dest="sid")
-    args, vsidargs = parser.parse_known_args()
-    if not (args.dump and args.sid):
-        raise ValueError("need --dump and --sid")
-
+def dumptune(args, vsidargs, tune=None):
     processor = reg_processor()
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -78,7 +68,14 @@ def main():
         cli = (
             [
                 "/usr/local/bin/vsid",
-                "-silent",
+                "-console",
+                "+logtofile",
+                "-logtostdout",
+                "-debug",
+                "-warp",
+                "-sound",
+                "-soundwarpmode",
+                str(1),
                 "-sounddev",
                 "dump",
                 "-soundarg",
@@ -87,39 +84,23 @@ def main():
             + vsidargs
             + [args.sid]
         )
+        base = os.path.basename(args.sid).split(".")[0]
+        if base is not None:
+            base = ".".join((base, str(tune)))
+        base = ".".join((base, "dump.zst"))
+        dumpname = os.path.join(args.dumpdir, base)
 
-        with open(args.dump, "wb") as dump:
+        with open(dumpname, "wb") as dump:
             cctx = zstandard.ZstdCompressor()
             with cctx.stream_writer(dump) as writer:
-                fifofh = os.open(fifoname, os.O_RDONLY | os.O_NONBLOCK)
-                buffer = ""
-                with Popen(cli, stdout=PIPE, stderr=STDOUT, shell=False) as viceproc:
-                    procdata = psutil.Process(viceproc.pid)
-                    last_data = 0
-                    while True:
-                        try:
-                            data = os.read(fifofh, int(1e6)).decode("utf8")
-                            buffer += data
-                        except BlockingIOError:
-                            time.sleep(0.001)
-                            continue
-                        now = time.time()
-                        if len(data) == 0:
-                            if (
-                                now - last_data > 1
-                                and procdata.status() == psutil.STATUS_ZOMBIE
-                            ):
-                                break
-                        else:
-                            last_data = now
-                        last_newline = buffer.rfind("\n")
-                        if last_newline != -1:
-                            writer.write(processor.process(buffer[:last_newline]))
-                            buffer = buffer[last_newline + 1 :]
-                writer.write(processor.process(buffer))
+                with ProcessPoolExecutor(max_workers=1) as pool:
+                    _result = pool.submit(subprocess.check_call, cli)
+                    with open(fifoname, "r", encoding="utf8") as f:
+                        for line in f:
+                            writer.write(processor.process(line))
         if processor.lines_out:
             print(
-                args.dump,
+                dumpname,
                 "in",
                 processor.lines_in,
                 "out",
@@ -127,6 +108,56 @@ def main():
                 processor.lines_out / processor.lines_in * 100,
                 "%",
             )
+
+
+def main():
+    parser = argparse.ArgumentParser(allow_abbrev=False, prefix_chars="-+")
+    parser.add_argument("--dumpdir", dest="dumpdir")
+    parser.add_argument("--sid", dest="sid")
+    parser.add_argument("--songlengths", dest="songlengths", default=None)
+    parser.add_argument("--ntsc", action=argparse.BooleanOptionalAction, default=False)
+    args, vsidargs = parser.parse_known_args()
+    if not (args.dumpdir and args.sid):
+        raise ValueError("need --dumpdir and --sid")
+
+    if args.songlengths is None:
+        dumptune(args, vsidargs)
+        return
+
+    with open(args.sid, "rb") as f:
+        md5 = hashlib.md5(f.read()).hexdigest()
+    songlengths = None
+    with open(args.songlengths, "r", encoding="utf8") as f:
+        for line in f:
+            if line.startswith(md5):
+                songlengths = line
+                break
+    if songlengths is None:
+        raise ValueError("no songlengths for %s" % args.sid)
+
+    sid_phi = 985248
+    if args.ntsc:
+        sid_phi = 1022727
+
+    songlengths = songlengths.strip().split(" ")[1:]
+    for tune, songlength in enumerate(songlengths, start=1):
+        seconds = 0
+        try:
+            base, ms = songlength.split(".")
+            seconds = float(ms) / 1e3
+        except ValueError:
+            base = songlength
+        base = [int(i) for i in base.split(":")]
+        if len(base) == 1:
+            seconds += base[0]
+        elif len(base) == 2:
+            seconds += base[0] * 60 + base[1]
+        else:
+            raise ValueError("cannot parse songlength %s" % songlength)
+        limit = int(sid_phi * seconds)
+        dumptune(
+            args, vsidargs + ["-tune", str(tune), "-limitcycles", str(limit * 10)], tune
+        )
 
 
 if __name__ == "__main__":
