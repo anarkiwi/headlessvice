@@ -3,7 +3,8 @@
 # Example usage:
 #
 # $ docker build -f Dockerfile . -t anarkiwi/headlessvice
-# $ docker run --rm -v /scratch/hvsc:/scratch/hvsc -t anarkiwi/headlessvice /usr/local/bin/vsiddump.py --dumpdir=/scratch/hvsc/ --sid /scratch/hvsc/C64Music/MUSICIANS/H/Hubbard_Rob/Commando.sid --songlengths=/scratch/hvsc/C64Music/DOCUMENTS/Songlengths.md5
+# $ docker run --rm -v /scratch/hvsc:/scratch/hvsc -t anarkiwi/headlessvice /usr/local/bin/vsiddump.py --dumpdir=/scratch/hvsc/ --songlengths=/scratch/hvsc/C64Music/DOCUMENTS/Songlengths.md5 --sid /scratch/hvsc/C64Music/MUSICIANS/H/Hubbard_Rob/Commando.sid
+# $ for d in /scratch/hvsc/C64Music/MUSICIANS/G/Goto80 /scratch/hvsc/C64Music/MUSICIANS/0-9/4-Mat /scratch/hvsc/C64Music/MUSICIANS/H/Hubbard_Rob ; do ddir=$(basename $d) ; mkdir /scratch/sidtableflip/dumps/$ddir ; find $d -name \*sid -print |parallel --jobs 8 --progress docker run --rm -v /scratch/hvsc:/scratch/hvsc -v /scratch/sidtableflip/dumps:/scratch/sidtableflip/dumps -t anarkiwi/headlessvice /usr/local/bin/vsiddump.py --dumpdir=/scratch/sidtableflip/dumps/$ddir --songlengths=/scratch/hvsc/C64Music/DOCUMENTS/Songlengths.md5 --sid ; done
 
 FROM ubuntu:latest AS builder
 

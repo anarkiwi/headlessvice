@@ -125,7 +125,7 @@ def main():
         return
 
     with open(args.sid, "rb") as f:
-        md5 = hashlib.md5(f.read()).hexdigest()
+        md5 = hashlib.md5(f.read()).hexdigest().lower()
     songlengths = None
     with open(args.songlengths, "r", encoding="utf8") as f:
         for line in f:
@@ -139,7 +139,10 @@ def main():
     if args.ntsc:
         sid_phi = 1022727
 
-    songlengths = songlengths.strip().split(" ")[1:]
+    songlengths = songlengths.strip().split("=")[1].split(" ")
+    if not songlengths:
+        raise ValueError("no songlengths for %s" % args.sid)
+
     for tune, songlength in enumerate(songlengths, start=1):
         seconds = 0
         try:
