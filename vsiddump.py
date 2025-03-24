@@ -158,8 +158,9 @@ def main():
         else:
             raise ValueError("cannot parse songlength %s" % songlength)
         limit = int(sid_phi * seconds)
+        print(tune, songlength, seconds, limit)
         dumptune(
-            args, vsidargs + ["-tune", str(tune), "-limitcycles", str(limit * 10)], tune
+            args, vsidargs + ["-tune", str(tune), "-limitcycles", str(limit)], tune
         )
 
 
