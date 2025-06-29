@@ -3,9 +3,9 @@
 import argparse
 import hashlib
 import os
+import multiprocessing
 import subprocess
 import tempfile
-from concurrent.futures import ProcessPoolExecutor
 import zstandard
 
 
@@ -59,7 +59,7 @@ class reg_processor:
         return "".join(lines).encode("utf8")
 
 
-def dumptune(args, vsidargs, tune=None):
+def dumptune(dumpdir, args, vsidargs, tune=None):
     processor = reg_processor()
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -70,7 +70,7 @@ def dumptune(args, vsidargs, tune=None):
                 "/usr/local/bin/vsid",
                 "-console",
                 "+logtofile",
-                "-logtostdout",
+                "+logtostdout",
                 "-debug",
                 "-warp",
                 "-sound",
@@ -88,26 +88,41 @@ def dumptune(args, vsidargs, tune=None):
         if base is not None:
             base = ".".join((base, str(tune)))
         base = ".".join((base, "dump.zst"))
-        dumpname = os.path.join(args.dumpdir, base)
+        dumpname = os.path.join(dumpdir, base)
 
-        with open(dumpname, "wb") as dump:
-            cctx = zstandard.ZstdCompressor()
-            with cctx.stream_writer(dump) as writer:
-                with ProcessPoolExecutor(max_workers=1) as pool:
-                    _result = pool.submit(subprocess.check_call, cli)
-                    with open(fifoname, "r", encoding="utf8") as f:
-                        for line in f:
-                            writer.write(processor.process(line))
-        if processor.lines_out:
-            print(
-                dumpname,
-                "in",
-                processor.lines_in,
-                "out",
-                processor.lines_out,
-                processor.lines_out / processor.lines_in * 100,
-                "%",
-            )
+        def run_processor():
+            try:
+                with open(dumpname, "wb") as dump:
+                    cctx = zstandard.ZstdCompressor()
+                    with cctx.stream_writer(dump) as writer:
+                        processor = reg_processor()
+                        with open(fifoname, "r", encoding="utf8") as f:
+                            while True:
+                                line = f.readline()
+                                if not line:
+                                    break
+                                writer.write(processor.process(line))
+                        if processor.lines_out:
+                            print(
+                                dumpname,
+                                "in",
+                                processor.lines_in,
+                                "out",
+                                processor.lines_out,
+                                "%.2f"
+                                % (processor.lines_out / processor.lines_in * 100),
+                                "%",
+                            )
+            except Exception as err:
+                print("run_processor() failed:", err)
+
+        processor = multiprocessing.Process(target=run_processor)
+        with subprocess.Popen(
+            cli, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        ) as vice:
+            processor.start()
+            vice.communicate()
+        processor.join()
 
 
 def main():
@@ -117,11 +132,15 @@ def main():
     parser.add_argument("--songlengths", dest="songlengths", default=None)
     parser.add_argument("--ntsc", action=argparse.BooleanOptionalAction, default=False)
     args, vsidargs = parser.parse_known_args()
-    if not (args.dumpdir and args.sid):
-        raise ValueError("need --dumpdir and --sid")
+    dumpdir = args.dumpdir
+    if not args.sid:
+        raise ValueError("need --sid")
+
+    if not dumpdir:
+        dumpdir = os.path.dirname(args.sid)
 
     if args.songlengths is None:
-        dumptune(args, vsidargs)
+        dumptune(dumpdir, args, vsidargs)
         return
 
     with open(args.sid, "rb") as f:
@@ -160,7 +179,10 @@ def main():
         limit = int(sid_phi * seconds)
         print(tune, songlength, seconds, limit)
         dumptune(
-            args, vsidargs + ["-tune", str(tune), "-limitcycles", str(limit)], tune
+            dumpdir,
+            args,
+            vsidargs + ["-tune", str(tune), "-limitcycles", str(limit)],
+            tune,
         )
 
 
