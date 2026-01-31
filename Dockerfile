@@ -29,7 +29,7 @@ RUN aclocal && autoheader && autoconf && automake --force-missing --add-missing 
 RUN make -j all && make install
 
 FROM ubuntu:latest
-RUN apt-get update && apt-get install -yq libcurl4 libgomp1 zlib1g python3 python3-psutil python3-zstandard && apt -y autoremove && apt-get clean
+RUN apt-get update && apt-get install -yq libcurl4 libgomp1 zlib1g python3 python3-pip python3-psutil python3-pandas && apt -y autoremove && apt-get clean && pip install --break-system-packages pyarrow
 COPY --from=builder /usr/local /usr/local
 COPY vsiddump.py /usr/local/bin/vsiddump.py
 
