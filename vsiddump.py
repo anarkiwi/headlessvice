@@ -6,62 +6,42 @@ import os
 import multiprocessing
 import subprocess
 import tempfile
-import zstandard
+import pandas as pd
 
 
-# compress repeated writes, mask unused bits, add chipno
-class reg_processor:
-    regwidths = {
-        3: 2**4 - 1,  # v1 PWM high
-        10: 2**4 - 1,  # v2 PWM high
-        17: 2**4 - 1,  # v3 PWM high,
-        21: 2**3 - 1,  # filter cutoff low
-        23: (2**8 - 1) - 2**3,  # clear filter external
-    }
+MAX_REG = 24
+PDTYPE = pd.UInt32Dtype()
 
-    def __init__(self):
-        self.clock = 0
-        self.sidstate = {}
-        self.lines_in = 0
-        self.lines_out = 0
 
-    def process(self, data):
-        lines = []
-        for line in data.splitlines():
-            clock_diff, irq_diff, nmi_diff, chipno, addr, val = [
-                int(i) for i in line.split()
-            ]
-            self.lines_in += 1
-            linestate = (chipno, addr)
-            self.clock += clock_diff
-            mask = self.regwidths.get(addr, 255)
-            val = val & mask
-            if self.sidstate.get(linestate, None) == val:
-                continue
-            self.lines_out += 1
-            self.sidstate[linestate] = val
-            lines.append(
-                " ".join(
-                    [
-                        str(i)
-                        for i in [
-                            self.clock,
-                            irq_diff,
-                            nmi_diff,
-                            chipno,
-                            addr,
-                            val,
-                        ]
-                    ]
-                )
-                + "\n"
-            )
-        return "".join(lines).encode("utf8")
+def squeeze_changes(orig_df):
+    diff_cols = orig_df.reg.unique()
+    dfs = []
+    for _c, df in orig_df.groupby("chipno"):
+        reg_df = df.pivot(columns="reg", values="val").astype(PDTYPE).ffill().fillna(0)
+        reg_df = reg_df.loc[
+            (reg_df[diff_cols].shift(fill_value=0) != reg_df[diff_cols]).any(axis=1)
+        ]
+        df = reg_df.join(df)[orig_df.columns]
+        dfs.append(df)
+    df = pd.concat(dfs).sort_values("clock").reset_index(drop=True)
+    return df
+
+
+def reduce_res(orig_df):
+    df = orig_df.copy()
+    for reg, mask in (
+        (3, 2**4 - 1),  # v1 PWM high
+        (10, 2**4 - 1),  # v2 PWM high
+        (17, 2**4 - 1),  # v3 PWM high,
+        (21, 2**3 - 1),  # filter cutoff low
+        (23, (2**8 - 1) - 2**3),  # clear filter external
+    ):
+        m = df["reg"] == reg
+        df.loc[m, "val"] = df[m]["val"] & mask
+    return df
 
 
 def dumptune(dumpdir, args, vsidargs, tune=None):
-    processor = reg_processor()
-
     with tempfile.TemporaryDirectory() as tmpdir:
         fifoname = os.path.join(tmpdir, "fifo")
         os.mkfifo(fifoname)
@@ -69,6 +49,8 @@ def dumptune(dumpdir, args, vsidargs, tune=None):
             [
                 "/usr/local/bin/vsid",
                 "-console",
+                "-logfile",
+                "/dev/null",
                 "+logtofile",
                 "+logtostdout",
                 "-debug",
@@ -87,32 +69,42 @@ def dumptune(dumpdir, args, vsidargs, tune=None):
         base = os.path.basename(args.sid).split(".")[0]
         if base is not None:
             base = ".".join((base, str(tune)))
-        base = ".".join((base, "dump.zst"))
+        base = ".".join((base, "dump.parquet"))
         dumpname = os.path.join(dumpdir, base)
 
         def run_processor():
             try:
-                with open(dumpname, "wb") as dump:
-                    cctx = zstandard.ZstdCompressor()
-                    with cctx.stream_writer(dump) as writer:
-                        processor = reg_processor()
-                        with open(fifoname, "r", encoding="utf8") as f:
-                            while True:
-                                line = f.readline()
-                                if not line:
-                                    break
-                                writer.write(processor.process(line))
-                        if processor.lines_out:
-                            print(
-                                dumpname,
-                                "in",
-                                processor.lines_in,
-                                "out",
-                                processor.lines_out,
-                                "%.2f"
-                                % (processor.lines_out / processor.lines_in * 100),
-                                "%",
-                            )
+                with open(fifoname, "r", encoding="utf8") as f:
+                    df = pd.read_csv(
+                        f,
+                        header=None,
+                        delim_whitespace=True,
+                        names=[
+                            "clock_diff",
+                            "irq_diff",
+                            "nmi_diff",
+                            "chipno",
+                            "reg",
+                            "val",
+                        ],
+                    )
+                df["clock"] = df["clock_diff"].cumsum()
+                df["irq"] = (df["clock"] - df["irq_diff"]).clip(lower=0)
+                df = df[df["reg"] <= MAX_REG]
+                df = df[["clock", "irq", "chipno", "reg", "val"]]
+                df = reduce_res(df)
+                df = squeeze_changes(df)
+                print(df["irq"].min(), df["irq"].max())
+                df = df.astype(
+                    {
+                        "clock": PDTYPE,
+                        "irq": PDTYPE,
+                        "chipno": pd.UInt8Dtype(),
+                        "reg": pd.UInt8Dtype(),
+                        "val": pd.UInt8Dtype(),
+                    }
+                )
+                df.to_parquet(dumpname, compression="zstd")
             except Exception as err:
                 print("run_processor() failed:", err)
 
@@ -162,6 +154,7 @@ def main():
     if not songlengths:
         raise ValueError("no songlengths for %s" % args.sid)
 
+    os.makedirs("/root/.local/state/vice/", exist_ok=True)
     for tune, songlength in enumerate(songlengths, start=1):
         seconds = 0
         try:
