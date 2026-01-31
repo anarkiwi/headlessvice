@@ -8,7 +8,7 @@
 #
 # Multiple directories:
 #
-# $ for d in /scratch/hvsc/C64Music/MUSICIANS/G/Goto80 /scratch/hvsc/C64Music/MUSICIANS/0-9/4-Mat /scratch/hvsc/C64Music/MUSICIANS/H/Hubbard_Rob ; do ddir=$(basename $d) ; mkdir /scratch/preframr/dumps/$ddir ; find $d -name \*sid -print |parallel --jobs 8 --progress docker run --rm -v /scratch/hvsc:/scratch/hvsc -v /scratch/preframr/dumps:/scratch/preframr/dumps -t anarkiwi/headlessvice /usr/local/bin/vsiddump.py --dumpdir=/scratch/preframr/dumps/$ddir --songlengths=/scratch/hvsc/C64Music/DOCUMENTS/Songlengths.md5 --sid ; done
+# $ for d in /scratch/hvsc/C64Music/MUSICIANS/G/Goto80 /scratch/hvsc/C64Music/MUSICIANS/0-9/4-Mat /scratch/hvsc/C64Music/MUSICIANS/H/Hubbard_Rob ; do ddir=$(basename $d) ; mkdir /scratch/preframr/dumps/$ddir ; find $d -name \*sid -print |parallel --jobs 64 --progress docker run --rm -v /scratch/hvsc:/scratch/hvsc -v /scratch/preframr/dumps:/scratch/preframr/dumps -t anarkiwi/headlessvice /usr/local/bin/vsiddump.py --dumpdir=/scratch/preframr/dumps/$ddir --songlengths=/scratch/hvsc/C64Music/DOCUMENTS/Songlengths.md5 --sid ; done
 #
 # Entire HVSC:
 #

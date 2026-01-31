@@ -94,7 +94,6 @@ def dumptune(dumpdir, args, vsidargs, tune=None):
                 df = df[["clock", "irq", "chipno", "reg", "val"]]
                 df = reduce_res(df)
                 df = squeeze_changes(df)
-                print(df["irq"].min(), df["irq"].max())
                 df = df.astype(
                     {
                         "clock": PDTYPE,
