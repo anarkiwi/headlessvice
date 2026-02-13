@@ -66,6 +66,7 @@ def dumptune(dumpdir, args, vsidargs, tune=None):
             + vsidargs
             + [args.sid]
         )
+        print(" ".join(cli))
         base = os.path.basename(args.sid).split(".")[0]
         if base is not None:
             base = ".".join((base, str(tune)))
@@ -130,6 +131,8 @@ def main():
     if not dumpdir:
         dumpdir = os.path.dirname(args.sid)
 
+    os.makedirs("/root/.local/state/vice/", exist_ok=True)
+
     if args.songlengths is None:
         dumptune(dumpdir, args, vsidargs)
         return
@@ -153,7 +156,6 @@ def main():
     if not songlengths:
         raise ValueError("no songlengths for %s" % args.sid)
 
-    os.makedirs("/root/.local/state/vice/", exist_ok=True)
     for tune, songlength in enumerate(songlengths, start=1):
         seconds = 0
         try:
