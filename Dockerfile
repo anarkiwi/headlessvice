@@ -26,7 +26,7 @@ RUN git clone https://github.com/anarkiwi/asid-vice
 WORKDIR /vice/asid-vice
 RUN aclocal && autoheader && autoconf && automake --force-missing --add-missing && ./autogen.sh && \
     ./configure --enable-headlessui --disable-pdf-docs --without-pulse --without-alsa --without-png --disable-dependency-tracking --disable-realdevice --disable-rs232 --disable-ipv6 --disable-native-gtk3ui --disable-sdlui --disable-sdlui2 --disable-ffmpeg
-RUN make -j all && make install
+RUN make -j"$(nproc)" all && make install
 
 FROM ubuntu:latest
 RUN apt-get update && apt-get install -yq libcurl4 libgomp1 zlib1g python3 python3-pip python3-psutil python3-pandas && apt -y autoremove && apt-get clean && pip install --break-system-packages pyarrow
