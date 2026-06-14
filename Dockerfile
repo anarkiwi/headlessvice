@@ -20,7 +20,7 @@ RUN apt-get update && apt-get install -y git
 RUN apt-get update && apt-get install -y file make autoconf gcc g++ flex bison dos2unix xa65 libcurl4-openssl-dev pkg-config zlib1g-dev python3-pytest python3-zstandard python3-psutil
 
 WORKDIR /vice
-RUN git clone https://github.com/anarkiwi/asid-vice
+RUN git clone --recursive https://github.com/anarkiwi/asid-vice
 
 # We need asid-vice for multi SID support
 WORKDIR /vice/asid-vice
