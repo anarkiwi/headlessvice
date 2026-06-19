@@ -77,7 +77,7 @@ def run_processor(fifoname, dumpname):
     try:
         df = process_dump(fifoname)
         tmp_name = os.path.join(
-            os.path.dirname(dumpname), "." + os.path.basname(dumpname)
+            os.path.dirname(dumpname), "." + os.path.basename(dumpname)
         )
         df.to_parquet(tmp_name, compression="zstd")
         os.rename(tmp_name, dumpname)
