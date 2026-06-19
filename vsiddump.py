@@ -8,7 +8,6 @@ import subprocess
 import tempfile
 import pandas as pd
 
-
 MAX_REG = 24
 PDTYPE = pd.UInt32Dtype()
 
@@ -77,7 +76,11 @@ def process_dump(fifoname):
 def run_processor(fifoname, dumpname):
     try:
         df = process_dump(fifoname)
-        df.to_parquet(dumpname, compression="zstd")
+        tmp_name = os.path.join(
+            os.path.dirname(dumpname), "." + os.path.basname(dumpname)
+        )
+        df.to_parquet(tmp_name, compression="zstd")
+        os.rename(tmp_name, dumpname)
     except Exception as err:
         print("run_processor() failed:", err)
 
