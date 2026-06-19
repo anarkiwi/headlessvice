@@ -41,6 +41,47 @@ def reduce_res(orig_df):
     return df
 
 
+def process_dump(fifoname):
+    with open(fifoname, "r", encoding="utf8") as f:
+        df = pd.read_csv(
+            f,
+            header=None,
+            sep=r"\s+",
+            names=[
+                "clock_diff",
+                "irq_diff",
+                "nmi_diff",
+                "chipno",
+                "reg",
+                "val",
+            ],
+        )
+    df["clock"] = df["clock_diff"].cumsum()
+    df["irq"] = (df["clock"] - df["irq_diff"]).clip(lower=0)
+    df = df[df["reg"] <= MAX_REG]
+    df = df[["clock", "irq", "chipno", "reg", "val"]]
+    df = reduce_res(df)
+    df = squeeze_changes(df)
+    df = df.astype(
+        {
+            "clock": PDTYPE,
+            "irq": PDTYPE,
+            "chipno": pd.UInt8Dtype(),
+            "reg": pd.UInt8Dtype(),
+            "val": pd.UInt8Dtype(),
+        }
+    )
+    return df
+
+
+def run_processor(fifoname, dumpname):
+    try:
+        df = process_dump(fifoname)
+        df.to_parquet(dumpname, compression="zstd")
+    except Exception as err:
+        print("run_processor() failed:", err)
+
+
 def dumptune(dumpdir, args, vsidargs, tune=None):
     with tempfile.TemporaryDirectory() as tmpdir:
         fifoname = os.path.join(tmpdir, "fifo")
@@ -73,42 +114,9 @@ def dumptune(dumpdir, args, vsidargs, tune=None):
         base = ".".join((base, "dump.parquet"))
         dumpname = os.path.join(dumpdir, base)
 
-        def run_processor():
-            try:
-                with open(fifoname, "r", encoding="utf8") as f:
-                    df = pd.read_csv(
-                        f,
-                        header=None,
-                        delim_whitespace=True,
-                        names=[
-                            "clock_diff",
-                            "irq_diff",
-                            "nmi_diff",
-                            "chipno",
-                            "reg",
-                            "val",
-                        ],
-                    )
-                df["clock"] = df["clock_diff"].cumsum()
-                df["irq"] = (df["clock"] - df["irq_diff"]).clip(lower=0)
-                df = df[df["reg"] <= MAX_REG]
-                df = df[["clock", "irq", "chipno", "reg", "val"]]
-                df = reduce_res(df)
-                df = squeeze_changes(df)
-                df = df.astype(
-                    {
-                        "clock": PDTYPE,
-                        "irq": PDTYPE,
-                        "chipno": pd.UInt8Dtype(),
-                        "reg": pd.UInt8Dtype(),
-                        "val": pd.UInt8Dtype(),
-                    }
-                )
-                df.to_parquet(dumpname, compression="zstd")
-            except Exception as err:
-                print("run_processor() failed:", err)
-
-        processor = multiprocessing.Process(target=run_processor)
+        processor = multiprocessing.Process(
+            target=run_processor, args=(fifoname, dumpname)
+        )
         with subprocess.Popen(
             cli, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         ) as vice:

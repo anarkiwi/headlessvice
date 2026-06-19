@@ -30,9 +30,11 @@ RUN make -C src/monitor mon_parse.h mon_parse.c mon_lex.c && \
     make -j"$(nproc)" all && make install
 
 FROM ubuntu:latest
-RUN apt-get update && apt-get install -yq libcurl4 libgomp1 zlib1g python3 python3-pip python3-psutil python3-pandas && apt -y autoremove && apt-get clean && pip install --break-system-packages pyarrow
+RUN apt-get update && apt-get install -yq libcurl4 libgomp1 zlib1g python3 python3-pip python3-psutil python3-pandas python3-pytest && apt -y autoremove && apt-get clean && pip install --break-system-packages pyarrow
 COPY --from=builder /usr/local /usr/local
 COPY vsiddump.py /usr/local/bin/vsiddump.py
+COPY test_vsiddump.py /usr/local/bin/test_vsiddump.py
 
+RUN cd /usr/local/bin && python3 -m pytest test_vsiddump.py -v && rm test_vsiddump.py
 RUN /usr/local/bin/vsid -h -console -silent
 RUN /usr/local/bin/vsiddump.py --dump /tmp/test.zst --help
