@@ -12,7 +12,7 @@
 #
 # Entire HVSC:
 #
-# find /scratch/hvsc -name \*sid -print |parallel --jobs 8 --progress docker run --rm -v /scratch/hvsc:/scratch/hvsc -v -t anarkiwi/headlessvice /usr/local/bin/vsiddump.py --songlengths=/scratch/hvsc/C64Music/DOCUMENTS/Songlengths.md5 --sid
+# find /scratch/hvsc -name \*sid -print |parallel --jobs 8 --progress docker run --rm -v /scratch/hvsc:/scratch/hvsc -t anarkiwi/headlessvice /usr/local/bin/vsiddump.py --songlengths=/scratch/hvsc/C64Music/DOCUMENTS/Songlengths.md5 --sid
 
 FROM ubuntu:latest AS builder
 
@@ -22,7 +22,9 @@ RUN apt-get update && apt-get install -y file make autoconf gcc g++ flex bison d
 WORKDIR /vice
 RUN git clone --recursive https://github.com/anarkiwi/asid-vice
 
-# We need asid-vice for multi SID support
+# We need asid-vice for multi SID support.
+# asid-vice carries the VICE log_file_close() use-after-free fix (via revice
+# patch 07) since anarkiwi/asid-vice#38, so no patching is needed here.
 WORKDIR /vice/asid-vice
 RUN aclocal && autoheader && autoconf && automake --force-missing --add-missing && ./autogen.sh && \
     ./configure --enable-headlessui --disable-pdf-docs --without-pulse --without-alsa --without-png --disable-dependency-tracking --disable-realdevice --disable-rs232 --disable-ipv6 --disable-native-gtk3ui --disable-sdlui --disable-sdlui2 --disable-ffmpeg
