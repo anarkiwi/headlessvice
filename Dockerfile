@@ -26,8 +26,25 @@ RUN git clone --recursive https://github.com/anarkiwi/asid-vice
 # asid-vice carries the VICE log_file_close() use-after-free fix (via revice
 # patch 07) since anarkiwi/asid-vice#38, so no patching is needed here.
 WORKDIR /vice/asid-vice
+# Ensure the revice submodule (which carries the bustrace sources referenced by
+# the wired Makefile.am) is fully populated, then (re)run the revice wiring
+# script. apply-wiring.sh is a NO-OP on the source for asid-vice master (the
+# bustrace wiring is already committed -> empty diff), but it rewrites the wired
+# Makefile.am fragments so the subsequent automake run regenerates Makefile.in
+# from them. Without this, autotools reuses the pre-generated Makefile.in that
+# predates the bustrace wiring and src/revice/.../soundbustrace.c is silently
+# dropped from the build -> vsid links without the `-bustrace` option and the
+# bustrace_* symbols are absent.
+RUN git submodule update --init --recursive
+RUN bash src/revice/integration/vice/apply-wiring.sh
+# --enable-cpuhistory is REQUIRED for the bustrace feature: the per-access hook
+# in src/c64/vsidcpu.c that feeds revice_bustrace lives inside
+# #ifdef FEATURE_CPUMEMHISTORY, which this flag turns on. asid-vice master
+# already carries the bustrace wiring (anarkiwi/asid-vice#39); cpuhistory is the
+# only build change needed. It must NOT alter the SID register dump (verified
+# byte-identical against the pre-cpuhistory build).
 RUN aclocal && autoheader && autoconf && automake --force-missing --add-missing && ./autogen.sh && \
-    ./configure --enable-headlessui --disable-pdf-docs --without-pulse --without-alsa --without-png --disable-dependency-tracking --disable-realdevice --disable-rs232 --disable-ipv6 --disable-native-gtk3ui --disable-sdlui --disable-sdlui2 --disable-ffmpeg
+    ./configure --enable-headlessui --enable-cpuhistory --disable-pdf-docs --without-pulse --without-alsa --without-png --disable-dependency-tracking --disable-realdevice --disable-rs232 --disable-ipv6 --disable-native-gtk3ui --disable-sdlui --disable-sdlui2 --disable-ffmpeg
 RUN make -C src/monitor mon_parse.h mon_parse.c mon_lex.c && \
     make -j"$(nproc)" all && make install
 

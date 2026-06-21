@@ -99,5 +99,64 @@ def test_reduce_res_masks_registers():
     assert out[out["reg"] == 23]["val"].iloc[0] == 0xF7  # filter external cleared
 
 
+class _Args:
+    def __init__(self, sid, bustrace):
+        self.sid = sid
+        self.bustrace = bustrace
+
+
+def _capture_cli(monkeypatch, bustrace):
+    """Run dumptune with vsid/processor stubbed out and capture the vsid CLI."""
+    captured = {}
+
+    class _FakePopen:
+        def __init__(self, cli, **kwargs):
+            captured["cli"] = cli
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def communicate(self):
+            return (b"", b"")
+
+    class _FakeProc:
+        def __init__(self, *a, **k):
+            pass
+
+        def start(self):
+            pass
+
+        def join(self):
+            pass
+
+    monkeypatch.setattr(vsiddump.subprocess, "Popen", _FakePopen)
+    monkeypatch.setattr(vsiddump.multiprocessing, "Process", _FakeProc)
+    with tempfile.TemporaryDirectory() as dumpdir:
+        vsiddump.dumptune(
+            dumpdir, _Args("/x/Tune.sid", bustrace), ["-tune", "1"], tune=1
+        )
+    return captured["cli"]
+
+
+def test_dumptune_no_bustrace_omits_flag(monkeypatch):
+    cli = _capture_cli(monkeypatch, bustrace=False)
+    assert "-bustrace" not in cli
+    # The register-dump path is unchanged.
+    assert "-sounddev" in cli and "dump" in cli
+
+
+def test_dumptune_bustrace_adds_flag(monkeypatch):
+    cli = _capture_cli(monkeypatch, bustrace=True)
+    assert "-bustrace" in cli
+    busarg = cli[cli.index("-bustrace") + 1]
+    # Writes to a hidden temp file named for the .bus.bin (atomic-rename target).
+    assert os.path.basename(busarg) == ".Tune.1.bus.bin"
+    # The dump driver is still wired exactly as before (bustrace is additive).
+    assert "-sounddev" in cli and "dump" in cli
+
+
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-v"]))
