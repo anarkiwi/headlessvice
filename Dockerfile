@@ -27,16 +27,24 @@ RUN git clone --recursive https://github.com/anarkiwi/asid-vice
 # patch 07) since anarkiwi/asid-vice#38, so no patching is needed here.
 WORKDIR /vice/asid-vice
 # Ensure the revice submodule (which carries the bustrace sources referenced by
-# the wired Makefile.am) is fully populated, then (re)run the revice wiring
-# script. apply-wiring.sh is a NO-OP on the source for asid-vice master (the
-# bustrace wiring is already committed -> empty diff), but it rewrites the wired
-# Makefile.am fragments so the subsequent automake run regenerates Makefile.in
-# from them. Without this, autotools reuses the pre-generated Makefile.in that
-# predates the bustrace wiring and src/revice/.../soundbustrace.c is silently
-# dropped from the build -> vsid links without the `-bustrace` option and the
-# bustrace_* symbols are absent.
-RUN git submodule update --init --recursive
-RUN bash src/revice/integration/vice/apply-wiring.sh
+# the wired Makefile.am) is fully populated, and force regeneration of
+# src/c64/Makefile.in.
+#
+# asid-vice master has the bustrace BUILD wiring in src/c64/Makefile.am
+# (anarkiwi/asid-vice#39) but ships a committed, PRE-GENERATED
+# src/c64/Makefile.in that predates it (0 soundbustrace refs). A fresh git
+# checkout gives Makefile.am and Makefile.in equal mtimes, so the automake run
+# below sees Makefile.in as up to date and does NOT regenerate it -> the bustrace
+# sources (src/revice/.../soundbustrace.c) are silently dropped from the build
+# and vsid links WITHOUT the `-bustrace` option (the cmdline parser then rejects
+# it with exit 255). Bumping Makefile.am's mtime forces automake to regenerate
+# Makefile.in from source. We touch ONLY src/c64/Makefile.am: do not run
+# apply-wiring.sh or touch src/monitor/Makefile.am here -- on the already-wired
+# master that perturbs the monitor lexer/parser build and breaks
+# `make -C src/monitor`. Verify the fix with:
+#   nm /usr/local/bin/vsid | grep -c bustrace   (expect >0)
+RUN git submodule update --init --recursive && \
+    touch src/c64/Makefile.am
 # --enable-cpuhistory is REQUIRED for the bustrace feature: the per-access hook
 # in src/c64/vsidcpu.c that feeds revice_bustrace lives inside
 # #ifdef FEATURE_CPUMEMHISTORY, which this flag turns on. asid-vice master
