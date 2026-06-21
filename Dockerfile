@@ -51,6 +51,14 @@ RUN git submodule update --init --recursive && \
 # already carries the bustrace wiring (anarkiwi/asid-vice#39); cpuhistory is the
 # only build change needed. It must NOT alter the SID register dump (verified
 # byte-identical against the pre-cpuhistory build).
+#
+# NOTE: enabling cpuhistory changed the heap layout and exposed a pre-existing
+# NULL-pointer deref in VICE's src/log.c (log_helper() handed a NULL non-color
+# string to log_archdep() -> strlen(NULL)) when stdout is a pipe with
+# +logtofile +logtostdout and colorizing on - i.e. the dump pipeline. That
+# manifested as an intermittent vsid crash ("produced no dump"). Fixed in
+# asid-vice master via revice patch 09 (anarkiwi/revice#9, anarkiwi/asid-vice#41);
+# this image inherits the fix from the asid-vice clone above.
 RUN aclocal && autoheader && autoconf && automake --force-missing --add-missing && ./autogen.sh && \
     ./configure --enable-headlessui --enable-cpuhistory --disable-pdf-docs --without-pulse --without-alsa --without-png --disable-dependency-tracking --disable-realdevice --disable-rs232 --disable-ipv6 --disable-native-gtk3ui --disable-sdlui --disable-sdlui2 --disable-ffmpeg
 RUN make -C src/monitor mon_parse.h mon_parse.c mon_lex.c && \
