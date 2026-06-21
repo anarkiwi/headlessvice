@@ -89,6 +89,25 @@ def dumptune(dumpdir, args, vsidargs, tune=None):
     with tempfile.TemporaryDirectory() as tmpdir:
         fifoname = os.path.join(tmpdir, "fifo")
         os.mkfifo(fifoname)
+        base = os.path.basename(args.sid).split(".")[0]
+        if base is not None:
+            base = ".".join((base, str(tune)))
+        dumpname = os.path.join(dumpdir, ".".join((base, "dump.parquet")))
+
+        # Optionally also emit the deterministic CPU bus trace (.bus.bin)
+        # produced by asid-vice's -bustrace. This is additive: it does NOT
+        # affect the SID register dump above (the dump stays byte-identical).
+        # We write to a temp file and atomically rename, mirroring the dump.
+        bustrace_arg = []
+        bus_tmp = None
+        busname = None
+        if args.bustrace:
+            busname = os.path.join(dumpdir, ".".join((base, "bus.bin")))
+            bus_tmp = os.path.join(
+                os.path.dirname(busname), "." + os.path.basename(busname)
+            )
+            bustrace_arg = ["-bustrace", bus_tmp]
+
         cli = (
             [
                 "/usr/local/bin/vsid",
@@ -107,15 +126,11 @@ def dumptune(dumpdir, args, vsidargs, tune=None):
                 "-soundarg",
                 fifoname,
             ]
+            + bustrace_arg
             + vsidargs
             + [args.sid]
         )
         print(" ".join(cli))
-        base = os.path.basename(args.sid).split(".")[0]
-        if base is not None:
-            base = ".".join((base, str(tune)))
-        base = ".".join((base, "dump.parquet"))
-        dumpname = os.path.join(dumpdir, base)
 
         processor = multiprocessing.Process(
             target=run_processor, args=(fifoname, dumpname)
@@ -127,6 +142,12 @@ def dumptune(dumpdir, args, vsidargs, tune=None):
             vice.communicate()
         processor.join()
 
+        if bus_tmp is not None:
+            if os.path.exists(bus_tmp):
+                os.rename(bus_tmp, busname)
+            else:
+                print("bustrace requested but no trace written:", busname)
+
 
 def main():
     parser = argparse.ArgumentParser(allow_abbrev=False, prefix_chars="-+")
@@ -134,6 +155,12 @@ def main():
     parser.add_argument("--sid", dest="sid")
     parser.add_argument("--songlengths", dest="songlengths", default=None)
     parser.add_argument("--ntsc", action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument(
+        "--bustrace",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="also emit a deterministic .bus.bin CPU bus trace next to the dump",
+    )
     args, vsidargs = parser.parse_known_args()
     dumpdir = args.dumpdir
     if not args.sid:
