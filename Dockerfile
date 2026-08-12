@@ -14,13 +14,21 @@
 #
 # find /scratch/hvsc -name \*sid -print |parallel --jobs 8 --progress docker run --rm -v /scratch/hvsc:/scratch/hvsc -t anarkiwi/headlessvice /usr/local/bin/vsiddump.py --songlengths=/scratch/hvsc/C64Music/DOCUMENTS/Songlengths.md5 --sid
 
-FROM ubuntu:latest AS builder
+# Pinned upstream, updated by .github/workflows/upstream-bump.yml. asid-vice
+# master is tracked rather than its release tags: this image depends on
+# master-only fixes (anarkiwi/asid-vice#38, #39).
+ARG ASID_VICE_REF=0edb56da740ca2e9cf5fdcdb61736f659fb341cd
+
+FROM ubuntu:26.04 AS builder
+ARG ASID_VICE_REF
 
 RUN apt-get update && apt-get install -y git
 RUN apt-get update && apt-get install -y file make autoconf gcc g++ flex bison dos2unix xa65 libcurl4-openssl-dev pkg-config zlib1g-dev python3-pytest python3-zstandard python3-psutil
 
 WORKDIR /vice
-RUN git clone --recursive https://github.com/anarkiwi/asid-vice
+RUN git clone --recursive https://github.com/anarkiwi/asid-vice && \
+    cd asid-vice && git checkout ${ASID_VICE_REF} && \
+    git submodule update --init --recursive
 
 # We need asid-vice for multi SID support.
 # asid-vice carries the VICE log_file_close() use-after-free fix (via revice
@@ -64,7 +72,7 @@ RUN aclocal && autoheader && autoconf && automake --force-missing --add-missing 
 RUN make -C src/monitor mon_parse.h mon_parse.c mon_lex.c && \
     make -j"$(nproc)" all && make install
 
-FROM ubuntu:latest
+FROM ubuntu:26.04
 RUN apt-get update && apt-get install -yq libcurl4 libgomp1 zlib1g python3 python3-pip python3-psutil python3-pandas python3-pytest && apt -y autoremove && apt-get clean && pip install --break-system-packages pyarrow
 COPY --from=builder /usr/local /usr/local
 COPY vsiddump.py /usr/local/bin/vsiddump.py
