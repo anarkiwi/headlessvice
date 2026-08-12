@@ -1,0 +1,70 @@
+name: upstream-bump
+
+on:
+  schedule:
+    - cron: '31 5 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: check asid-vice master
+        id: up
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ref=$(gh api repos/anarkiwi/asid-vice/commits/master -q .sha)
+          case "${ref}" in ''|null) echo "cannot resolve asid-vice master" >&2; exit 1;; esac
+          current=$(sed -n 's/^ARG ASID_VICE_REF=//p' Dockerfile)
+          echo "asid-vice: ${current} -> ${ref}"
+          {
+            echo "ref=${ref}"
+            echo "short=$(echo "${ref}" | cut -c1-8)"
+            echo "changed=$([ "${ref}" = "${current}" ] && echo false || echo true)"
+          } >> "${GITHUB_OUTPUT}"
+          sed -i "s|^ARG ASID_VICE_REF=.*|ARG ASID_VICE_REF=${ref}|" Dockerfile
+
+      # PRs opened with GITHUB_TOKEN do not start workflow runs, so the new pin
+      # is built here instead of on the pull request.
+      - uses: docker/setup-buildx-action@v4
+        if: steps.up.outputs.changed == 'true'
+
+      - name: build
+        if: steps.up.outputs.changed == 'true'
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          load: true
+          tags: headlessvice:bump
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # The bustrace option is dropped silently when the automake
+      # regeneration in the Dockerfile stops working, so assert vsid still
+      # offers it rather than only that the image builds.
+      - name: test
+        if: steps.up.outputs.changed == 'true'
+        run: tests/smoke.sh headlessvice:bump
+
+      - name: open pull request
+        if: steps.up.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: asid-vice-${{ steps.up.outputs.short }}
+          commit-message: "asid-vice ${{ steps.up.outputs.short }}"
+          title: "asid-vice ${{ steps.up.outputs.short }}"
+          body: |
+            Pin asid-vice master
+            [${{ steps.up.outputs.short }}](https://github.com/anarkiwi/asid-vice/commit/${{ steps.up.outputs.ref }}).
+
+            Built and tested in
+            [this run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }});
+            `test` does not run on pull requests opened by `GITHUB_TOKEN`.
+          delete-branch: true
