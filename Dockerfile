@@ -17,7 +17,7 @@
 # Pinned upstream, updated by .github/workflows/upstream-bump.yml. asid-vice
 # master is tracked rather than its release tags: this image depends on
 # master-only fixes (anarkiwi/asid-vice#38, #39).
-ARG ASID_VICE_REF=0edb56da740ca2e9cf5fdcdb61736f659fb341cd
+ARG ASID_VICE_REF=63ad8e65ff5e799673e37a0704e56af38c549144
 
 FROM ubuntu:26.04 AS builder
 ARG ASID_VICE_REF
